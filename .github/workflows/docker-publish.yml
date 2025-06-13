@@ -35,5 +35,7 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/postgis-pgvector:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            context=.
           labels: |
             org.opencontainers.image.source=${{ github.repositoryUrl }}
