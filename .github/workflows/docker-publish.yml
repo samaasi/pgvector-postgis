@@ -20,7 +20,6 @@ jobs:
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
@@ -32,8 +31,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: |
-            ghcr.io/${{ secrets.DOCKERHUB_USERNAME }}/postgis-pgvector:pg17
-            ghcr.io/${{ secrets.DOCKERHUB_USERNAME }}/postgis-pgvector:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/postgis-pgvector:pg17
+            ${{ secrets.DOCKERHUB_USERNAME }}/postgis-pgvector:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
           labels: |
