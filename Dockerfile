@@ -13,14 +13,12 @@ RUN apt-get update && \
     apt-get upgrade -y && \
     rm -rf /var/lib/apt/lists/*
 
-# Install PostGIS with all requested features
+# Install PostGIS with all features (raster, topology, and SFCGAL are included
+# in the main postgresql-17-postgis-3 package from the PGDG repository)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       postgresql-17-postgis-3 \
       postgresql-17-postgis-3-scripts \
-      postgresql-17-postgis-3-raster \
-      postgresql-17-postgis-3-topology \
-      postgresql-17-postgis-3-sfcgal \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
