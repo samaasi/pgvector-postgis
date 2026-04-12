@@ -7,10 +7,10 @@ A production-ready PostgreSQL 17 Docker image combining **pgvector**, **PostGIS*
 | Extension | Version Source | Purpose |
 |---|---|---|
 | **pgvector** (`vector`) | Base image | Vector similarity search (cosine, L2, inner product) for AI/ML embeddings |
-| **PostGIS** (`postgis`) | Debian packages | Core geospatial data types and spatial functions |
-| **PostGIS Raster** (`postgis_raster`) | Debian packages | Raster data types and analysis functions |
-| **PostGIS Topology** (`postgis_topology`) | Debian packages | Topology types for network and boundary modelling |
-| **PostGIS SFCGAL** (`postgis_sfcgal`) | Debian packages | Advanced 2D/3D spatial operations |
+| **PostGIS** (`postgis`) | PGDG package | Core geospatial data types and spatial functions |
+| **PostGIS Raster** (`postgis_raster`) | PGDG package (bundled) | Raster data types and analysis functions |
+| **PostGIS Topology** (`postgis_topology`) | PGDG package (bundled) | Topology types for network and boundary modelling |
+| **PostGIS SFCGAL** (`postgis_sfcgal`) | PGDG package (bundled) | Advanced 2D/3D spatial operations |
 | **TimescaleDB** (`timescaledb`) | Official TimescaleDB repo | Time-series hypertables, continuous aggregates, compression |
 
 ## Quick Start
