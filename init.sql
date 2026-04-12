@@ -12,3 +12,6 @@ CREATE EXTENSION IF NOT EXISTS postgis_topology;
 
 -- Enable PostGIS SFCGAL support
 CREATE EXTENSION IF NOT EXISTS postgis_sfcgal;
+
+-- Enable TimescaleDB for time-series data
+CREATE EXTENSION IF NOT EXISTS timescaledb;
