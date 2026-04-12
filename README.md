@@ -162,9 +162,13 @@ ORDER BY bucket DESC;
 ## Project Structure
 
 ```
+├── .github/workflows/  # CI/CD pipeline (build, push, scan)
 ├── Dockerfile          # Multi-extension PostgreSQL 17 image
 ├── init.sql            # Extension initialization (runs on first start)
 ├── .dockerignore       # Excludes non-essential files from build context
+├── .gitignore          # Git ignore rules
+├── CONTRIBUTING.md     # Contribution guidelines
+├── LICENSE             # MIT License
 └── README.md           # This file
 ```
 
@@ -220,11 +224,17 @@ CREATE INDEX ON documents USING hnsw (embedding vector_cosine_ops);
 
 ## License
 
-This Dockerfile is provided as-is. The bundled extensions are subject to their own licenses:
+This project is licensed under the [MIT License](LICENSE).
+
+The bundled extensions are subject to their own licenses:
 
 - **pgvector** — [PostgreSQL License](https://github.com/pgvector/pgvector/blob/master/LICENSE)
 - **PostGIS** — [GPLv2](https://postgis.net/development/rfcs/rfc-1/)
 - **TimescaleDB** — [Timescale License (TSL)](https://github.com/timescale/timescaledb/blob/main/tsl/LICENSE-TIMESCALE)
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Maintainer
 
