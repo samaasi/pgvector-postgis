@@ -1,2 +1,19 @@
-.idea
+# IDE / Editor
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Environment files
 *.env
+.env.*
+
+# Docker
+docker-compose.override.yml
