@@ -76,16 +76,11 @@ jobs:
         if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
         run: echo "Pushed image digest ${{ steps.build.outputs.digest }}"
 
-  scan:
-    needs: build-and-push
-    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-
-    steps:
+      # Scan the pushed image for vulnerabilities
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ needs.build-and-push.outputs.image-tag }}
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/pgvector-postgis:latest
           format: table
           exit-code: 0
           severity: CRITICAL,HIGH
