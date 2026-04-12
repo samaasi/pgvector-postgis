@@ -10,15 +10,9 @@ on:
 permissions:
   contents: read
 
-env:
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/pgvector-postgis
-
 jobs:
-  build-and-push:
+  build:
     runs-on: ubuntu-latest
-
-    outputs:
-      image-tag: ${{ steps.image-tag.outputs.tag }}
 
     steps:
       - name: Checkout repository
@@ -41,7 +35,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_NAME }}
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/pgvector-postgis
           tags: |
             # On master branch → "latest" and "pg17" tags
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
@@ -52,10 +46,6 @@ jobs:
             type=semver,pattern={{major}}
             # Always include the short SHA for traceability
             type=sha,prefix=sha-
-
-      - name: Determine image tag for scanning
-        id: image-tag
-        run: echo "tag=${{ env.IMAGE_NAME }}:sha-$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         id: build
@@ -76,16 +66,12 @@ jobs:
         if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
         run: echo "Pushed image digest ${{ steps.build.outputs.digest }}"
 
-  scan:
-    needs: build-and-push
-    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-
-    steps:
+      # Scan the pushed image for vulnerabilities
       - name: Run Trivy vulnerability scanner
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ needs.build-and-push.outputs.image-tag }}
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/pgvector-postgis:latest
           format: table
           exit-code: 0
           severity: CRITICAL,HIGH
