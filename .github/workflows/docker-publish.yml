@@ -9,7 +9,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/pgvector-postgis
@@ -17,6 +16,9 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+
+    outputs:
+      image-tag: ${{ steps.image-tag.outputs.tag }}
 
     steps:
       - name: Checkout repository
@@ -51,6 +53,10 @@ jobs:
             # Always include the short SHA for traceability
             type=sha,prefix=sha-
 
+      - name: Determine image tag for scanning
+        id: image-tag
+        run: echo "tag=${{ env.IMAGE_NAME }}:sha-$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_OUTPUT"
+
       - name: Build and push
         id: build
         uses: docker/build-push-action@v6
@@ -79,7 +85,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ needs.build-and-push.outputs.image-tag || format('{0}:sha-{1}', vars.IMAGE_NAME || 'pgvector-postgis', github.sha) }}
+          image-ref: ${{ needs.build-and-push.outputs.image-tag }}
           format: table
           exit-code: 0
           severity: CRITICAL,HIGH
