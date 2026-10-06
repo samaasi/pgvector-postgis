@@ -14,5 +14,29 @@ RUN apt-get update && \
       postgresql-${PG_MAJOR}-age \
     && rm -rf /var/lib/apt/lists/*
 
+# Install TimescaleDB from the official repository using explicit GPG verification
+# (avoids piping curl to bash which is a security risk)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates \
+      curl \
+      gnupg \
+      lsb-release \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://packagecloud.io/timescale/timescaledb/gpgkey \
+       | gpg --dearmor -o /etc/apt/keyrings/timescale.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/timescale.gpg] https://packagecloud.io/timescale/timescaledb/debian/ $(lsb_release -cs) main" \
+       > /etc/apt/sources.list.d/timescaledb.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+      timescaledb-2-postgresql-17 \
+    && apt-get purge -y curl gnupg lsb-release \
+    && apt-get autoremove -y \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Configure TimescaleDB to be preloaded at server start
+RUN echo "shared_preload_libraries = 'timescaledb'" >> /usr/share/postgresql/postgresql.conf.sample
+
 # Add initialization script
 COPY --chmod=755 init.sh /docker-entrypoint-initdb.d/

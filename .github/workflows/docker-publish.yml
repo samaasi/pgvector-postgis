@@ -2,12 +2,16 @@ name: Build and Publish Docker Image
 
 on:
   push:
-    branches: [master]
+    branches: [master, develop]
     tags: ['v*.*.*']
   pull_request:
-    branches: [master]
+    branches: [master, develop]
+
+permissions:
+  contents: read
 
 env:
+  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/pgvector-postgis
   LATEST_PG_MAJOR: '18'
 
 jobs:
