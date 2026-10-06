@@ -50,6 +50,8 @@ RUN echo "shared_preload_libraries = 'timescaledb'" >> /usr/share/postgresql/pos
 # Add initialization script
 COPY --chmod=755 init.sh /docker-entrypoint-initdb.d/
 
-# Report healthy only once the database accepts connections
+# Report healthy only once the database accepts connections. Check over TCP:
+# the temporary server used while init scripts run listens on the Unix socket only,
+# so this stays unhealthy until initialization has fully finished.
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
-    CMD pg_isready -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-${POSTGRES_USER:-postgres}}"
+    CMD pg_isready -h 127.0.0.1 -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-${POSTGRES_USER:-postgres}}"
