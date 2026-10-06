@@ -4,7 +4,8 @@
 
 | Version | Supported |
 |---|---|
-| `latest` / `pg17` | ✅ Active |
+| `latest` / `pg18` | ✅ Active |
+| `pg17` | ✅ Active |
 | Older tags | ❌ Not maintained |
 
 We only support the most recent release. Please upgrade to the latest image before reporting issues.
@@ -50,9 +51,10 @@ If you discover a security vulnerability in this project, **please report it res
 
 This image follows security best practices as documented in the [README](README.md#security):
 
-- GPG-verified package installation
-- Base image security patching
+- GPG-verified package installation (pinned signing-key fingerprint)
+- Weekly rebuilds that re-apply OS security patches
 - Build dependency cleanup
 - No secrets baked into the image
 - Non-root runtime via official PostgreSQL image
-- Automated vulnerability scanning via Trivy in CI
+- Trivy scan gate in CI: a fixable CRITICAL vulnerability blocks publishing
+- GitHub Actions pinned to commit SHAs

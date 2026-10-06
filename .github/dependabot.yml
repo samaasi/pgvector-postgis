@@ -1,7 +1,7 @@
 version: 2
 
 updates:
-  # Keep GitHub Actions up to date
+  # Keep GitHub Actions up to date (they are pinned to commit SHAs with a version comment)
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -14,15 +14,6 @@ updates:
       prefix: "ci"
       include: "scope"
 
-  # Keep Docker base image up to date
-  - package-ecosystem: docker
-    directory: /
-    schedule:
-      interval: weekly
-      day: monday
-    labels:
-      - dependencies
-      - docker
-    commit-message:
-      prefix: "chore"
-      include: "scope"
+  # The Docker base image is intentionally NOT listed here: the FROM line is built from
+  # ARGs (PG_MAJOR / PGVECTOR_VERSION), which Dependabot cannot resolve. Renovate tracks the
+  # pgvector version instead (see renovate.json).

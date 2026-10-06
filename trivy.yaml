@@ -1,0 +1,19 @@
+# Shared Trivy configuration: used by CI (.github/workflows/docker-publish.yml) and
+# by local scans (trivy image --config trivy.yaml <image>).
+# The default 5m is not enough to unpack this ~1.9 GB image on a busy runner
+timeout: 15m
+
+scan:
+  scanners:
+    - vuln
+  # usr/local/bin/gosu comes from the upstream postgres image and is built with an older
+  # Go toolchain, which accounts for all of this image's HIGH/CRITICAL findings (Debian
+  # itself has none). gosu only runs once at startup to drop root -> postgres and never
+  # handles TLS or network input, so the Go stdlib CVEs are not reachable. It is replaced
+  # as soon as upstream rebuilds with a newer Go; remove this skip once that is the case.
+  skip-files:
+    - usr/local/bin/gosu
+
+vulnerability:
+  # Only report issues that have a fix available; the rest cannot be acted on.
+  ignore-unfixed: true
