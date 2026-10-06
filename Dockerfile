@@ -57,8 +57,11 @@ RUN set -eux; \
       timescaledb-2-postgresql-${PG_MAJOR} \
       timescaledb-tools; \
     \
-    # JIT is disabled by default below; dropping the package also drops LLVM (~150 MB).
-    apt-get purge -y --auto-remove postgresql-${PG_MAJOR}-jit; \
+    # JIT is disabled by default below. From PostgreSQL 18 it is a separate package, and
+    # dropping it also drops LLVM (~40 MB). On PG17 it is part of the main package.
+    if dpkg -s "postgresql-${PG_MAJOR}-jit" >/dev/null 2>&1; then \
+      apt-get purge -y --auto-remove "postgresql-${PG_MAJOR}-jit"; \
+    fi; \
     \
     if [ "${PRUNE_OLD_TIMESCALEDB}" = "true" ]; then \
       libdir="$(pg_config --pkglibdir)"; \

@@ -244,7 +244,7 @@ $$) AS (person agtype, friend agtype);
 - **Patched weekly** — CI rebuilds and republishes every tag weekly (and busts the layer cache) so `apt-get upgrade` really picks up new OS security fixes
 - **Scan gate before publish** — each image is built, smoke-tested and scanned with Trivy first; a fixable CRITICAL vulnerability fails the build and nothing is pushed. HIGH/CRITICAL results are uploaded to the repository's Security tab
 - **Pinned CI** — every GitHub Action is pinned to a commit SHA
-- **Minimal attack surface** — build-only tools (`curl`, `gnupg`) and the JIT/LLVM packages are purged
+- **Minimal attack surface** — build-only tools (`curl`, `gnupg`) are purged, and on PostgreSQL 18 so are the JIT/LLVM packages
 - **No telemetry** — `timescaledb.telemetry_level = off`
 - **No secrets baked in** — credentials are supplied at runtime (prefer `POSTGRES_PASSWORD_FILE`)
 - **Non-root runtime** — the official PostgreSQL image drops to the `postgres` user at runtime
@@ -322,7 +322,7 @@ All standard [PostgreSQL Docker environment variables](https://hub.docker.com/_/
 
 | Setting | Value | Why |
 |---|---|---|
-| `jit` | `off` | PostGIS functions have high cost estimates, so the planner triggers JIT on queries that then run slower. The JIT/LLVM packages are not installed. |
+| `jit` | `off` | PostGIS functions have high cost estimates, so the planner triggers JIT on queries that then run slower. |
 | `random_page_cost` | `1.1` | Containers almost always run on SSD/NVMe |
 | `wal_compression` | `lz4` | Less WAL for little CPU |
 | `timescaledb.telemetry_level` | `off` | No usage data leaves the container |
