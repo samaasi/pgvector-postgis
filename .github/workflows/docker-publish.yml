@@ -76,7 +76,7 @@ jobs:
 
       # Fails the build on fixable CRITICAL vulnerabilities (config: trivy.yaml)
       - name: Trivy vulnerability gate
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: pgvector-postgis:ci
           trivy-config: trivy.yaml
@@ -87,7 +87,7 @@ jobs:
       # Full HIGH+CRITICAL report for the repository's Security tab (informational)
       - name: Trivy report (SARIF)
         if: ${{ always() && matrix.arch == 'amd64' }}
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: pgvector-postgis:ci
           trivy-config: trivy.yaml
