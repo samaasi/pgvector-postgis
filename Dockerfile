@@ -29,7 +29,7 @@ RUN apt-get update && \
        > /etc/apt/sources.list.d/timescaledb.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
-      timescaledb-2-postgresql-17 \
+      timescaledb-2-postgresql-${PG_MAJOR} \
     && apt-get purge -y curl gnupg lsb-release \
     && apt-get autoremove -y \
     && apt-get clean \

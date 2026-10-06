@@ -34,7 +34,7 @@ docker run -d \
   pgvector-postgis
 ```
 
-All extensions are automatically enabled on the first start via `init.sql`.
+All extensions are automatically enabled on the first start via `init.sh`.
 
 ### Docker Compose
 
@@ -164,7 +164,7 @@ ORDER BY bucket DESC;
 ```
 ├── .github/workflows/  # CI/CD pipeline (build, push, scan)
 ├── Dockerfile          # Multi-extension PostgreSQL 17 image
-├── init.sql            # Extension initialization (runs on first start)
+├── init.sh             # Extension initialization (runs on first start)
 ├── .dockerignore       # Excludes non-essential files from build context
 ├── .gitignore          # Git ignore rules
 ├── CONTRIBUTING.md     # Contribution guidelines
