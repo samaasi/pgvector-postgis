@@ -6,86 +6,208 @@ on:
     tags: ['v*.*.*']
   pull_request:
     branches: [master, develop]
+  # Weekly rebuild (runs on the default branch) so published tags pick up OS security patches
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/pgvector-postgis
   # PostgreSQL major version that receives the "latest" tag
   LATEST_PG_MAJOR: '18'
-  # Only publish from master and version tags; develop and PRs just build
+  # Only publish from master (incl. the weekly schedule) and version tags;
+  # develop and pull requests just build, scan and test.
   PUBLISH: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v') }}
 
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
+  build:
+    name: Build pg${{ matrix.pg_major }} (${{ matrix.arch }})
+    # Native runners per architecture: no QEMU emulation
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      security-events: write
     strategy:
       fail-fast: false
       matrix:
         pg_major: ['17', '18']
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up QEMU (required for multi-platform builds)
-        uses: docker/setup-qemu-action@v3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
+      # ISO year-week: busts the layer cache once a week so `apt-get upgrade` really re-runs
+      - name: Compute build week
+        id: week
+        run: echo "value=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+
+      # Build once, load into the local daemon, and gate on it BEFORE anything is pushed
+      - name: Build image for scanning and testing
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          tags: pgvector-postgis:ci
+          build-args: |
+            PG_MAJOR=${{ matrix.pg_major }}
+            BUILD_DATE=${{ steps.week.outputs.value }}
+          cache-from: type=gha,scope=pg${{ matrix.pg_major }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=pg${{ matrix.pg_major }}-${{ matrix.arch }}
+
+      - name: Smoke test (all extensions + hardened defaults)
+        run: ./scripts/smoke-test.sh pgvector-postgis:ci --shm-size=256m
+
+      # Fails the build on fixable CRITICAL vulnerabilities (config: trivy.yaml)
+      - name: Trivy vulnerability gate
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          image-ref: pgvector-postgis:ci
+          trivy-config: trivy.yaml
+          format: table
+          severity: CRITICAL
+          exit-code: '1'
+
+      # Full HIGH+CRITICAL report for the repository's Security tab (informational)
+      - name: Trivy report (SARIF)
+        if: ${{ always() && matrix.arch == 'amd64' }}
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          image-ref: pgvector-postgis:ci
+          trivy-config: trivy.yaml
+          format: sarif
+          output: trivy-pg${{ matrix.pg_major }}.sarif
+          severity: HIGH,CRITICAL
+          exit-code: '0'
+
+      - name: Upload SARIF to GitHub code scanning
+        # Fork PRs have a read-only token; code scanning must also be enabled on the repo
+        if: ${{ always() && matrix.arch == 'amd64' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@88585263c0627ee42c0e1c5143a112c8d6f4aa18 # v4.38.2
+        with:
+          sarif_file: trivy-pg${{ matrix.pg_major }}.sarif
+          category: trivy-pg${{ matrix.pg_major }}
+
+      # ---- Publish: only after the image passed the tests and the vulnerability gate ----
       - name: Log in to Docker Hub
         if: env.PUBLISH == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          # Use a Docker Hub access token (Account settings -> Personal access tokens), not the account password
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Extract OCI labels
+        id: meta
+        if: env.PUBLISH == 'true'
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE_NAME }}
+
+      # Push by digest only; the tags are attached to the multi-arch manifest in the `merge` job.
+      # Layers come from the cache populated by the build above, so this does not rebuild.
+      - name: Push image by digest
+        id: push
+        if: env.PUBLISH == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            PG_MAJOR=${{ matrix.pg_major }}
+            BUILD_DATE=${{ steps.week.outputs.value }}
+          cache-from: type=gha,scope=pg${{ matrix.pg_major }}-${{ matrix.arch }}
+          # Per-architecture images carry no attestation index so they can be merged into one manifest
+          provenance: false
+          sbom: false
+          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        if: env.PUBLISH == 'true'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
+        if: env.PUBLISH == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digests-pg${{ matrix.pg_major }}-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Publish pg${{ matrix.pg_major }} manifest
+    needs: build
+    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        pg_major: ['17', '18']
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: /tmp/digests
+          pattern: digests-pg${{ matrix.pg_major }}-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      - name: Extract metadata (tags, labels)
+      - name: Generate image tags
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.IMAGE_NAME }}
           flavor: latest=false
           tags: |
-            # On master → "pg<N>", plus "latest" for the newest major
+            # master and the weekly rebuild -> "pg<N>", plus "latest" for the newest major
             type=raw,value=pg${{ matrix.pg_major }},enable=${{ github.ref == 'refs/heads/master' }}
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' && matrix.pg_major == env.LATEST_PG_MAJOR }}
-            # On version tags → semver tags (e.g. v1.2.3 → 1.2.3-pg18, 1.2-pg18, 1-pg18)
+            # version tags -> semver (e.g. v1.2.3 -> 1.2.3-pg18, 1.2-pg18, 1-pg18)
             type=semver,pattern={{version}},suffix=-pg${{ matrix.pg_major }}
             type=semver,pattern={{major}}.{{minor}},suffix=-pg${{ matrix.pg_major }}
             type=semver,pattern={{major}},suffix=-pg${{ matrix.pg_major }}
-            # Always include the short SHA for traceability
+            # short SHA for traceability
             type=sha,prefix=sha-,suffix=-pg${{ matrix.pg_major }}
 
-      - name: Build and push
-        id: build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: ${{ env.PUBLISH == 'true' }}
-          build-args: |
-            PG_MAJOR=${{ matrix.pg_major }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=pg${{ matrix.pg_major }}
-          cache-to: type=gha,mode=max,scope=pg${{ matrix.pg_major }}
-          provenance: true
-          sbom: true
+      - name: Create multi-arch manifest and push tags
+        working-directory: /tmp/digests
+        run: |
+          # Word splitting is intended: each tag/digest must become a separate argument
+          # shellcheck disable=SC2046
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.IMAGE_NAME }}@sha256:%s ' *)
 
-      - name: Print image digest
-        if: env.PUBLISH == 'true'
-        run: echo "Pushed image digest ${{ steps.build.outputs.digest }}"
-
-      # Scan the exact image that was just pushed for vulnerabilities
-      - name: Run Trivy vulnerability scanner
-        if: env.PUBLISH == 'true'
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
-          format: table
-          exit-code: 0
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
+      - name: Inspect published image
+        run: docker buildx imagetools inspect ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
