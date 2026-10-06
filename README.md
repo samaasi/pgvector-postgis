@@ -1,6 +1,15 @@
 # pgvector-postgis
 
-A production-ready PostgreSQL 17 Docker image combining **pgvector**, **PostGIS**, and **TimescaleDB** — providing vector search, geospatial analysis, and time-series capabilities in a single, hardened container.
+A production-ready PostgreSQL Docker image combining **pgvector**, **PostGIS**, **TimescaleDB**, and **Apache AGE** — providing vector search, geospatial analysis, time-series, and graph (openCypher) capabilities in a single, hardened container.
+
+## Image Tags
+
+| Tag | PostgreSQL |
+|---|---|
+| `latest`, `pg18`, `<version>-pg18` | 18 |
+| `pg17`, `<version>-pg17` | 17 |
+
+> **Upgrading from PostgreSQL 17:** `latest` now points to PostgreSQL 18. A PG17 data directory cannot be opened by PG18 — pin `pg17`, or migrate with `pg_dump`/restore or `pg_upgrade`.
 
 ## Extensions
 
@@ -12,6 +21,7 @@ A production-ready PostgreSQL 17 Docker image combining **pgvector**, **PostGIS*
 | **PostGIS Topology** (`postgis_topology`) | PGDG package (bundled) | Topology types for network and boundary modelling |
 | **PostGIS SFCGAL** (`postgis_sfcgal`) | PGDG package (bundled) | Advanced 2D/3D spatial operations |
 | **TimescaleDB** (`timescaledb`) | Official TimescaleDB repo | Time-series hypertables, continuous aggregates, compression |
+| **Apache AGE** (`age`) | PGDG package | Graph database with openCypher queries |
 
 ## Quick Start
 
@@ -19,6 +29,9 @@ A production-ready PostgreSQL 17 Docker image combining **pgvector**, **PostGIS*
 
 ```bash
 docker build -t pgvector-postgis .
+
+# Or build for PostgreSQL 17
+docker build --build-arg PG_MAJOR=17 -t pgvector-postgis:pg17 .
 ```
 
 ### Run the container
@@ -30,11 +43,13 @@ docker run -d \
   -e POSTGRES_PASSWORD=mypassword \
   -e POSTGRES_DB=mydb \
   -p 5432:5432 \
-  -v pgdata:/var/lib/postgresql/data \
+  -v pgdata:/var/lib/postgresql \
   pgvector-postgis
 ```
 
 All extensions are automatically enabled on the first start via `init.sh`.
+
+> **Volume path:** from PostgreSQL 18 the volume is mounted at `/var/lib/postgresql` (data lives in `/var/lib/postgresql/18/docker`). For the `pg17` image, mount `/var/lib/postgresql/data` instead.
 
 ### Docker Compose
 
@@ -51,7 +66,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U myuser -d mydb"]
       interval: 10s
@@ -79,6 +94,7 @@ Expected output:
 ```
       extname       | extversion
 --------------------+------------
+ age                | 1.x.x
  plpgsql            | 1.0
  postgis            | 3.6.x
  postgis_raster     | 3.6.x
@@ -159,11 +175,34 @@ GROUP BY bucket, device_id
 ORDER BY bucket DESC;
 ```
 
+### Apache AGE — Graph Queries
+
+AGE is preloaded in every session and `ag_catalog` is on the `search_path` of the default database, so no `LOAD 'age'` is needed. Graph names must be at least 3 characters.
+
+```sql
+-- Create a graph
+SELECT create_graph('social');
+
+-- Create nodes and a relationship with openCypher
+SELECT * FROM cypher('social', $$
+  CREATE (a:Person {name: 'Alice'})-[:KNOWS]->(b:Person {name: 'Bob'})
+  RETURN a, b
+$$) AS (a agtype, b agtype);
+
+-- Traverse the graph
+SELECT * FROM cypher('social', $$
+  MATCH (p:Person)-[:KNOWS]->(friend)
+  RETURN p.name, friend.name
+$$) AS (person agtype, friend agtype);
+```
+
+> In databases other than `POSTGRES_DB`, run `SET search_path = ag_catalog, "$user", public;` (or `ALTER DATABASE ... SET search_path ...`) before using Cypher.
+
 ## Project Structure
 
 ```
 ├── .github/workflows/  # CI/CD pipeline (build, push, scan)
-├── Dockerfile          # Multi-extension PostgreSQL 17 image
+├── Dockerfile          # Multi-extension PostgreSQL image (PG_MAJOR build arg, default 18)
 ├── init.sh             # Extension initialization (runs on first start)
 ├── .dockerignore       # Excludes non-essential files from build context
 ├── .gitignore          # Git ignore rules
@@ -194,17 +233,17 @@ All standard [PostgreSQL Docker environment variables](https://hub.docker.com/_/
 | `POSTGRES_USER` | `postgres` | Superuser username |
 | `POSTGRES_PASSWORD` | *(required)* | Superuser password |
 | `POSTGRES_DB` | Same as `POSTGRES_USER` | Default database name |
-| `PGDATA` | `/var/lib/postgresql/data` | Data directory path |
+| `PGDATA` | `/var/lib/postgresql/18/docker` (PG18), `/var/lib/postgresql/data` (PG17) | Data directory path |
 
 ### TimescaleDB Tuning
 
-For production workloads, mount a custom configuration file:
+For production workloads, mount a custom configuration file (keep `shared_preload_libraries = 'timescaledb'` in it):
 
 ```bash
 docker run -d \
   -v ./custom-postgresql.conf:/etc/postgresql/postgresql.conf \
-  -e POSTGRES_ARGS="-c config_file=/etc/postgresql/postgresql.conf" \
-  pgvector-postgis
+  pgvector-postgis \
+  postgres -c config_file=/etc/postgresql/postgresql.conf
 ```
 
 Or use `timescaledb-tune` inside the container:
@@ -231,6 +270,7 @@ The bundled extensions are subject to their own licenses:
 - **pgvector** — [PostgreSQL License](https://github.com/pgvector/pgvector/blob/master/LICENSE)
 - **PostGIS** — [GPLv2](https://postgis.net/development/rfcs/rfc-1/)
 - **TimescaleDB** — [Timescale License (TSL)](https://github.com/timescale/timescaledb/blob/main/tsl/LICENSE-TIMESCALE)
+- **Apache AGE** — [Apache License 2.0](https://github.com/apache/age/blob/master/LICENSE)
 
 ## Contributing
 
