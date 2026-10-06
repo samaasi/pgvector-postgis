@@ -158,6 +158,21 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # Stable aggregate status for branch protection: require "build-and-push" instead of every matrix leg
+  build-and-push:
+    name: build-and-push
+    needs: [build, merge]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Verify build (and publish, when it ran) succeeded
+        env:
+          BUILD: ${{ needs.build.result }}
+          MERGE: ${{ needs.merge.result }}
+        run: |
+          echo "build=$BUILD merge=$MERGE"
+          [ "$BUILD" = success ] && { [ "$MERGE" = success ] || [ "$MERGE" = skipped ]; }
+
   merge:
     name: Publish pg${{ matrix.pg_major }} manifest
     needs: build
