@@ -21,8 +21,7 @@ Thank you for your interest in contributing! This guide will help you get starte
 3. **Make your changes** and test locally:
    ```bash
    docker build -t pgvector-postgis:test .
-   docker run --name test-db -e POSTGRES_PASSWORD=test -d pgvector-postgis:test
-   docker exec test-db psql -U postgres -c "SELECT extname, extversion FROM pg_extension ORDER BY extname;"
+   ./scripts/smoke-test.sh pgvector-postgis:test   # starts the image and verifies every extension
    ```
 4. **Commit** with a clear message:
    ```bash
@@ -52,7 +51,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 ### Prerequisites
 
 - Docker 20.10+ with Buildx
-- (Optional) QEMU for cross-platform builds
+- (Optional) [Trivy](https://trivy.dev) to run the same vulnerability scan as CI
 
 ### Build and test
 
@@ -73,3 +72,16 @@ docker rm -f test-db
 ## Code of Conduct
 
 Be respectful and constructive. We follow the [Contributor Covenant](https://www.contributor-covenant.org/).
+
+## Continuous Integration
+
+Every push and pull request builds each image (PostgreSQL 17 and 18, on native amd64 and arm64 runners), runs `scripts/smoke-test.sh` and a Trivy scan (`trivy.yaml`). A fixable CRITICAL vulnerability or a failing smoke test fails the build. Images are only published from `master` and `v*.*.*` tags, and `master` is rebuilt weekly so tags pick up OS security patches.
+
+Repository secrets used by the publish job:
+
+| Secret | Value |
+|---|---|
+| `DOCKERHUB_USERNAME` | Docker Hub username |
+| `DOCKERHUB_PASSWORD` | A Docker Hub **access token** with read/write scope (Account settings → Personal access tokens) — not the account password |
+
+GitHub Actions are pinned to commit SHAs; Dependabot updates them. The pgvector base-image version is updated by [Renovate](renovate.json), which needs the Renovate GitHub App installed on the repository.
