@@ -1,14 +1,18 @@
-# Use the official pgvector image for PostgreSQL 17
-FROM pgvector/pgvector:pg17
+# PostgreSQL major version and pinned pgvector release (override with --build-arg)
+ARG PG_MAJOR=18
+ARG PGVECTOR_VERSION=0.8.2
 
-# Install PostGIS with minimal dependencies
+# Use the official pgvector image as the base
+FROM pgvector/pgvector:${PGVECTOR_VERSION}-pg${PG_MAJOR}-trixie
+
+# Install PostGIS and Apache AGE from the PGDG repo configured in the base image
+# (PG_MAJOR is set as an env var by the base image)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      postgresql-17-postgis-3 \
-      postgresql-17-postgis-3-scripts \
-    && apt-get clean \
+      postgresql-${PG_MAJOR}-postgis-3 \
+      postgresql-${PG_MAJOR}-postgis-3-scripts \
+      postgresql-${PG_MAJOR}-age \
     && rm -rf /var/lib/apt/lists/*
 
 # Add initialization script
-COPY init.sh /docker-entrypoint-initdb.d/
-RUN chmod +x /docker-entrypoint-initdb.d/init.sh
+COPY --chmod=755 init.sh /docker-entrypoint-initdb.d/
